@@ -1,10 +1,11 @@
 import { AudioResource, StreamType } from "@discordjs/voice"
 import { Collection, SnowflakeUtil, type DMChannel } from "discord.js-selfbot-v13"
-import { stream as createStream } from "play-dl"
+import { setToken, stream as createStream } from "play-dl"
 import type { Readable } from "stream"
 import YouTube from "youtube-sr"
 import ytdl from "ytdl-core"
 import { Player } from "../Player"
+import token from "../token"
 import { PlayerOptions, PlayerProgressbarOptions, PlayOptions, QueueFilters, QueueRepeatMode, TrackSource } from "../types/types"
 import AudioFilters from "../utils/AudioFilters"
 import { createFFmpegStream } from "../utils/FFmpegStream"
@@ -13,6 +14,12 @@ import { StreamDispatcher } from "../VoiceInterface/StreamDispatcher"
 import { VolumeTransformer } from "../VoiceInterface/VolumeTransformer"
 import { ErrorStatusCode, PlayerError } from "./PlayerError"
 import Track from "./Track"
+
+setToken({
+    youtube: {
+        cookie: token
+    }
+})
 
 class Queue<T = unknown> {
     public readonly dmGuild: string;
@@ -153,7 +160,6 @@ class Queue<T = unknown> {
      */
     async connect(channel: DMChannel): Promise<Queue> {
         if (this.#watchDestroyed()) return;
-        console.log("Connected to channel")
         const connection = await this.player.voiceUtils.connect(channel, {
             deaf: this.options.autoSelfDeaf
         });

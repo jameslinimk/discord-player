@@ -6,6 +6,7 @@ import {
     createAudioPlayer,
     createAudioResource,
     entersState,
+    NoSubscriberBehavior,
     StreamType,
     VoiceConnection, VoiceConnectionDisconnectReason, VoiceConnectionStatus
 } from "@discordjs/voice"
@@ -41,6 +42,8 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
     constructor(connection: VoiceConnection, public readonly connectionTimeout: number = 20000) {
         super();
 
+        console.log("New stream dispatcher")
+
         /**
          * The voice connection
          * @type {VoiceConnection}
@@ -51,7 +54,11 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
          * The audio player
          * @type {AudioPlayer}
          */
-        this.audioPlayer = createAudioPlayer();
+        this.audioPlayer = createAudioPlayer({
+            behaviors: {
+                noSubscriber: NoSubscriberBehavior.Play
+            }
+        });
 
         // this.channel = channel;
 

@@ -1,5 +1,6 @@
 import { AudioResource, StreamType } from "@discordjs/voice"
 import { Collection, SnowflakeUtil, type DMChannel } from "discord.js-selfbot-v13"
+import { stream as createStream } from "play-dl"
 import type { Readable } from "stream"
 import YouTube from "youtube-sr"
 import ytdl from "ytdl-core"
@@ -152,6 +153,7 @@ class Queue<T = unknown> {
      */
     async connect(channel: DMChannel): Promise<Queue> {
         if (this.#watchDestroyed()) return;
+        console.log("Connected to channel")
         const connection = await this.player.voiceUtils.connect(channel, {
             deaf: this.options.autoSelfDeaf
         });
@@ -616,6 +618,7 @@ class Queue<T = unknown> {
         const track = options.filtersUpdate && !options.immediate ? src || this.current : src ?? this.tracks.shift();
         if (!track) return;
 
+        this.player.emit("debug", this, `Track: ${JSON.stringify(track.raw)}`);
         this.player.emit("debug", this, "Received play request");
 
         if (!options.filtersUpdate) {
@@ -640,6 +643,10 @@ class Queue<T = unknown> {
 
             if (hasCustomDownloader) {
                 stream = (await this.onBeforeCreateStream(track, spotifyResolved ? "youtube" : track.raw.source, this)) || null;
+            }
+
+            if (!stream && (spotifyResolved ? "youtube" : track.raw.source) === "youtube") {
+                stream = (await createStream(track.url, { discordPlayerCompatibility : true })).stream;
             }
 
             if (!stream) {

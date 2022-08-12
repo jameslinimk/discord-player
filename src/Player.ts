@@ -1,19 +1,19 @@
-import { Client, Collection, GuildResolvable, Snowflake, User, VoiceState, IntentsBitField } from "discord.js";
-import { TypedEmitter as EventEmitter } from "tiny-typed-emitter";
-import { Queue } from "./Structures/Queue";
-import { VoiceUtils } from "./VoiceInterface/VoiceUtils";
-import { PlayerEvents, PlayerOptions, QueryType, SearchOptions, PlayerInitOptions, PlayerSearchResult, PlaylistInitData } from "./types/types";
-import Track from "./Structures/Track";
-import { QueryResolver } from "./utils/QueryResolver";
-import YouTube from "youtube-sr";
-import { Util } from "./utils/Util";
-import Spotify from "spotify-url-info";
-import { PlayerError, ErrorStatusCode } from "./Structures/PlayerError";
-import { getInfo as ytdlGetInfo } from "ytdl-core";
-import { Client as SoundCloud, SearchResult as SoundCloudSearchResult } from "soundcloud-scraper";
-import { Playlist } from "./Structures/Playlist";
-import { ExtractorModel } from "./Structures/ExtractorModel";
-import { generateDependencyReport } from "@discordjs/voice";
+import { generateDependencyReport } from "@discordjs/voice"
+import { Client, Collection, Snowflake, User } from "discord.js-selfbot-v13"
+import { Client as SoundCloud, SearchResult as SoundCloudSearchResult } from "soundcloud-scraper"
+import Spotify from "spotify-url-info"
+import { TypedEmitter as EventEmitter } from "tiny-typed-emitter"
+import YouTube from "youtube-sr"
+import { getInfo as ytdlGetInfo } from "ytdl-core"
+import { ExtractorModel } from "./Structures/ExtractorModel"
+import { ErrorStatusCode, PlayerError } from "./Structures/PlayerError"
+import { Playlist } from "./Structures/Playlist"
+import { Queue } from "./Structures/Queue"
+import Track from "./Structures/Track"
+import { PlayerEvents, PlayerInitOptions, PlayerOptions, PlayerSearchResult, PlaylistInitData, QueryType, SearchOptions, type NewVoiceState } from "./types/types"
+import { QueryResolver } from "./utils/QueryResolver"
+import { Util } from "./utils/Util"
+import { VoiceUtils } from "./VoiceInterface/VoiceUtils"
 
 const soundcloud = new SoundCloud();
 
@@ -45,10 +45,6 @@ class Player extends EventEmitter<PlayerEvents> {
          */
         this.client = client;
 
-        if (this.client?.options?.intents && !new IntentsBitField(this.client?.options?.intents).has(IntentsBitField.Flags.GuildVoiceStates)) {
-            throw new PlayerError('client is missing "GuildVoiceStates" intent');
-        }
-
         /**
          * The extractors collection
          * @type {ExtractorModel}
@@ -73,19 +69,25 @@ class Player extends EventEmitter<PlayerEvents> {
      * @returns {void}
      * @private
      */
-    private _handleVoiceState(oldState: VoiceState, newState: VoiceState): void {
-        const queue = this.getQueue(oldState.guild.id);
+    private _handleVoiceState(oldState: NewVoiceState, newState: NewVoiceState): void {
+        const queue = this.getQueue(oldState.channelId);
         if (!queue || !queue.connection) return;
 
+        // TODO Update theres once figured out a way to detect voice states
+        return
+
+        // Seeing if the bot is disconnected from VC
+        /*
         if (oldState.channelId && !newState.channelId && newState.member.id === newState.guild.members.me.id) {
             try {
                 queue.destroy();
-            } catch {
-                /* noop */
-            }
+            } catch {}
             return void this.emit("botDisconnect", queue);
         }
+        */
 
+        // Pausing if server muted
+        /*
         if (!oldState.channelId && newState.channelId && newState.member.id === newState.guild.members.me.id) {
             if (!oldState.serverMute && newState.serverMute) {
                 // state.serverMute can be null
@@ -98,7 +100,10 @@ class Player extends EventEmitter<PlayerEvents> {
                 }
             }
         }
+        */
 
+        // ?
+        /*
         if (oldState.channelId === newState.channelId && newState.member.id === newState.guild.members.me.id) {
             if (!oldState.serverMute && newState.serverMute) {
                 // state.serverMute can be null
@@ -111,18 +116,22 @@ class Player extends EventEmitter<PlayerEvents> {
                 }
             }
         }
+        */
 
+        /*
         if (queue.connection && !newState.channelId && oldState.channelId === queue.connection.channel.id) {
             if (!Util.isVoiceEmpty(queue.connection.channel)) return;
             const timeout = setTimeout(() => {
                 if (!Util.isVoiceEmpty(queue.connection.channel)) return;
-                if (!this.queues.has(queue.guild.id)) return;
+                if (!this.queues.has(queue.dmGuild.id)) return;
                 if (queue.options.leaveOnEmpty) queue.destroy(true);
                 this.emit("channelEmpty", queue);
             }, queue.options.leaveOnEmptyCooldown || 0).unref();
             queue._cooldownsTimeout.set(`empty_${oldState.guild.id}`, timeout);
         }
+        */
 
+        /*
         if (queue.connection && newState.channelId && newState.channelId === queue.connection.channel.id) {
             const emptyTimeout = queue._cooldownsTimeout.get(`empty_${oldState.guild.id}`);
             const channelEmpty = Util.isVoiceEmpty(queue.connection.channel);
@@ -131,7 +140,9 @@ class Player extends EventEmitter<PlayerEvents> {
                 queue._cooldownsTimeout.delete(`empty_${oldState.guild.id}`);
             }
         }
+        */
 
+        /*
         if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId && newState.member.id === newState.guild.members.me.id) {
             if (queue.connection && newState.member.id === newState.guild.members.me.id) queue.connection.channel = newState.channel;
             const emptyTimeout = queue._cooldownsTimeout.get(`empty_${oldState.guild.id}`);
@@ -142,62 +153,57 @@ class Player extends EventEmitter<PlayerEvents> {
             } else {
                 const timeout = setTimeout(() => {
                     if (queue.connection && !Util.isVoiceEmpty(queue.connection.channel)) return;
-                    if (!this.queues.has(queue.guild.id)) return;
+                    if (!this.queues.has(queue.dmGuild.id)) return;
                     if (queue.options.leaveOnEmpty) queue.destroy(true);
                     this.emit("channelEmpty", queue);
                 }, queue.options.leaveOnEmptyCooldown || 0).unref();
                 queue._cooldownsTimeout.set(`empty_${oldState.guild.id}`, timeout);
             }
         }
+        */
     }
 
     /**
      * Creates a queue for a guild if not available, else returns existing queue
-     * @param {GuildResolvable} guild The guild
+     * @param {string} dmGuild The guild
      * @param {PlayerOptions} queueInitOptions Queue init options
      * @returns {Queue}
      */
-    createQueue<T = unknown>(guild: GuildResolvable, queueInitOptions: PlayerOptions & { metadata?: T } = {}): Queue<T> {
-        guild = this.client.guilds.resolve(guild);
-        if (!guild) throw new PlayerError("Unknown Guild", ErrorStatusCode.UNKNOWN_GUILD);
-        if (this.queues.has(guild.id)) return this.queues.get(guild.id) as Queue<T>;
+    createQueue<T = unknown>(dmGuild: string, queueInitOptions: PlayerOptions & { metadata?: T } = {}): Queue<T> {
+        if (this.queues.has(dmGuild)) return this.queues.get(dmGuild) as Queue<T>;
 
         const _meta = queueInitOptions.metadata;
         delete queueInitOptions["metadata"];
         queueInitOptions.volumeSmoothness ??= 0.08;
         queueInitOptions.ytdlOptions ??= this.options.ytdlOptions;
-        const queue = new Queue(this, guild, queueInitOptions);
+        const queue = new Queue(this, dmGuild, queueInitOptions);
         queue.metadata = _meta;
-        this.queues.set(guild.id, queue);
+        this.queues.set(dmGuild, queue);
 
         return queue as Queue<T>;
     }
 
     /**
      * Returns the queue if available
-     * @param {GuildResolvable} guild The guild id
+     * @param {string} dmGuild The guild id
      * @returns {Queue}
      */
-    getQueue<T = unknown>(guild: GuildResolvable) {
-        guild = this.client.guilds.resolve(guild);
-        if (!guild) throw new PlayerError("Unknown Guild", ErrorStatusCode.UNKNOWN_GUILD);
-        return this.queues.get(guild.id) as Queue<T>;
+    getQueue<T = unknown>(dmGuild: string) {
+        return this.queues.get(dmGuild) as Queue<T>;
     }
 
     /**
      * Deletes a queue and returns deleted queue object
-     * @param {GuildResolvable} guild The guild id to remove
+     * @param {string} dmGuild The guild id to remove
      * @returns {Queue}
      */
-    deleteQueue<T = unknown>(guild: GuildResolvable) {
-        guild = this.client.guilds.resolve(guild);
-        if (!guild) throw new PlayerError("Unknown Guild", ErrorStatusCode.UNKNOWN_GUILD);
-        const prev = this.getQueue<T>(guild);
+    deleteQueue<T = unknown>(dmGuild: string) {
+        const prev = this.getQueue<T>(dmGuild);
 
         try {
             prev.destroy();
         } catch {} // eslint-disable-line no-empty
-        this.queues.delete(guild.id);
+        this.queues.delete(dmGuild);
 
         return prev;
     }
@@ -590,11 +596,11 @@ class Player extends EventEmitter<PlayerEvents> {
 
     /**
      * Resolves queue
-     * @param {GuildResolvable|Queue} queueLike Queue like object
+     * @param {string|Queue} queueLike Queue like object
      * @returns {Queue}
      */
-    resolveQueue<T>(queueLike: GuildResolvable | Queue): Queue<T> {
-        return this.getQueue(queueLike instanceof Queue ? queueLike.guild : queueLike);
+    resolveQueue<T>(queueLike: string | Queue): Queue<T> {
+        return this.getQueue(queueLike instanceof Queue ? queueLike.dmGuild : queueLike);
     }
 
     *[Symbol.iterator]() {
@@ -610,4 +616,5 @@ class Player extends EventEmitter<PlayerEvents> {
     }
 }
 
-export { Player };
+export { Player }
+

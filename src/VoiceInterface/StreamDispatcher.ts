@@ -7,16 +7,13 @@ import {
     createAudioResource,
     entersState,
     StreamType,
-    VoiceConnection,
-    VoiceConnectionStatus,
-    VoiceConnectionDisconnectReason
-} from "@discordjs/voice";
-import { StageChannel, VoiceChannel } from "discord.js";
-import { Duplex, Readable } from "stream";
-import { TypedEmitter as EventEmitter } from "tiny-typed-emitter";
-import Track from "../Structures/Track";
-import { Util } from "../utils/Util";
-import { PlayerError, ErrorStatusCode } from "../Structures/PlayerError";
+    VoiceConnection, VoiceConnectionDisconnectReason, VoiceConnectionStatus
+} from "@discordjs/voice"
+import { Duplex, Readable } from "stream"
+import { TypedEmitter as EventEmitter } from "tiny-typed-emitter"
+import { ErrorStatusCode, PlayerError } from "../Structures/PlayerError"
+import Track from "../Structures/Track"
+import { Util } from "../utils/Util"
 
 export interface VoiceEvents {
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -30,7 +27,7 @@ export interface VoiceEvents {
 class StreamDispatcher extends EventEmitter<VoiceEvents> {
     public readonly voiceConnection: VoiceConnection;
     public readonly audioPlayer: AudioPlayer;
-    public channel: VoiceChannel | StageChannel;
+    // public channel: VoiceChannel | StageChannel;
     public audioResource?: AudioResource<Track>;
     private readyLock = false;
     public paused: boolean;
@@ -41,7 +38,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * @param {VoiceChannel|StageChannel} channel The connected channel
      * @private
      */
-    constructor(connection: VoiceConnection, channel: VoiceChannel | StageChannel, public readonly connectionTimeout: number = 20000) {
+    constructor(connection: VoiceConnection, public readonly connectionTimeout: number = 20000) {
         super();
 
         /**
@@ -56,11 +53,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
          */
         this.audioPlayer = createAudioPlayer();
 
-        /**
-         * The voice channel
-         * @type {VoiceChannel|StageChannel}
-         */
-        this.channel = channel;
+        // this.channel = channel;
 
         /**
          * The paused state
@@ -133,7 +126,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * @returns {AudioResource}
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createStream(src: Readable | Duplex | string, ops?: { type?: StreamType; data?: any; disableVolume?: boolean }) {
+    createStream(src: Readable | Duplex | string, ops?: { type?: StreamType; data?: any; disableVolume?: boolean }): AudioResource {
         this.audioResource = createAudioResource(src, {
             inputType: ops?.type ?? StreamType.Arbitrary,
             metadata: ops?.data,
@@ -156,7 +149,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * Disconnects from voice
      * @returns {void}
      */
-    disconnect() {
+    disconnect(): void {
         try {
             this.audioPlayer.stop(true);
             this.voiceConnection.destroy();
@@ -167,7 +160,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * Stops the player
      * @returns {void}
      */
-    end() {
+    end(): void {
         this.audioPlayer.stop();
     }
 
@@ -176,7 +169,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * @param {boolean} [interpolateSilence=false] If true, the player will play 5 packets of silence after pausing to prevent audio glitches.
      * @returns {boolean}
      */
-    pause(interpolateSilence?: boolean) {
+    pause(interpolateSilence?: boolean): boolean {
         const success = this.audioPlayer.pause(interpolateSilence);
         this.paused = success;
         return success;
@@ -186,7 +179,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * Resumes the stream playback
      * @returns {boolean}
      */
-    resume() {
+    resume(): boolean {
         const success = this.audioPlayer.unpause();
         this.paused = !success;
         return success;
@@ -197,7 +190,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * @param {AudioResource<Track>} [resource=this.audioResource] The audio resource to play
      * @returns {Promise<StreamDispatcher>}
      */
-    async playStream(resource: AudioResource<Track> = this.audioResource) {
+    async playStream(resource: AudioResource<Track> = this.audioResource): Promise<StreamDispatcher> {
         if (!resource) throw new PlayerError("Audio resource is not available!", ErrorStatusCode.NO_AUDIO_RESOURCE);
         if (resource.ended) return void this.emit("error", new PlayerError("Cannot play a resource that has already ended.") as unknown as AudioPlayerError);
         if (!this.audioResource) this.audioResource = resource;
@@ -223,7 +216,7 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
      * @param {number} value The volume amount
      * @returns {boolean}
      */
-    setVolume(value: number) {
+    setVolume(value: number): boolean {
         if (!this.audioResource?.volume || isNaN(value) || value < 0 || value > Infinity) return false;
 
         this.audioResource.volume.setVolumeLogarithmic(value / 100);
@@ -250,4 +243,5 @@ class StreamDispatcher extends EventEmitter<VoiceEvents> {
     }
 }
 
-export { StreamDispatcher as StreamDispatcher };
+export { StreamDispatcher as StreamDispatcher }
+

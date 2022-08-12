@@ -1,20 +1,20 @@
-import { Collection, Guild, StageChannel, VoiceChannel, SnowflakeUtil, GuildChannelResolvable, ChannelType } from "discord.js";
-import { Player } from "../Player";
-import { StreamDispatcher } from "../VoiceInterface/StreamDispatcher";
-import Track from "./Track";
-import { PlayerOptions, PlayerProgressbarOptions, PlayOptions, QueueFilters, QueueRepeatMode, TrackSource } from "../types/types";
-import ytdl from "ytdl-core";
-import { AudioResource, StreamType } from "@discordjs/voice";
-import { Util } from "../utils/Util";
-import YouTube from "youtube-sr";
-import AudioFilters from "../utils/AudioFilters";
-import { PlayerError, ErrorStatusCode } from "./PlayerError";
-import type { Readable } from "stream";
-import { VolumeTransformer } from "../VoiceInterface/VolumeTransformer";
-import { createFFmpegStream } from "../utils/FFmpegStream";
+import { AudioResource, StreamType } from "@discordjs/voice"
+import { Collection, SnowflakeUtil, type DMChannel } from "discord.js-selfbot-v13"
+import type { Readable } from "stream"
+import YouTube from "youtube-sr"
+import ytdl from "ytdl-core"
+import { Player } from "../Player"
+import { PlayerOptions, PlayerProgressbarOptions, PlayOptions, QueueFilters, QueueRepeatMode, TrackSource } from "../types/types"
+import AudioFilters from "../utils/AudioFilters"
+import { createFFmpegStream } from "../utils/FFmpegStream"
+import { Util } from "../utils/Util"
+import { StreamDispatcher } from "../VoiceInterface/StreamDispatcher"
+import { VolumeTransformer } from "../VoiceInterface/VolumeTransformer"
+import { ErrorStatusCode, PlayerError } from "./PlayerError"
+import Track from "./Track"
 
 class Queue<T = unknown> {
-    public readonly guild: Guild;
+    public readonly dmGuild: string;
     public readonly player: Player;
     public connection: StreamDispatcher;
     public tracks: Track[] = [];
@@ -35,10 +35,10 @@ class Queue<T = unknown> {
     /**
      * Queue constructor
      * @param {Player} player The player that instantiated this queue
-     * @param {Guild} guild The guild that instantiated this queue
+     * @param {string} dmGuild The ID for the group chat
      * @param {PlayerOptions} [options] Player options for the queue
      */
-    constructor(player: Player, guild: Guild, options: PlayerOptions = {}) {
+    constructor(player: Player, dmGuild: string, options: PlayerOptions = {}) {
         /**
          * The player that instantiated this queue
          * @type {Player}
@@ -47,11 +47,11 @@ class Queue<T = unknown> {
         this.player = player;
 
         /**
-         * The guild that instantiated this queue
-         * @type {Guild}
+         * The group chat ID
+         * @type {string}
          * @readonly
          */
-        this.guild = guild;
+        this.dmGuild = dmGuild;
 
         /**
          * The player options for this queue
@@ -140,31 +140,22 @@ class Queue<T = unknown> {
      * Returns current track
      * @returns {Track}
      */
-    nowPlaying() {
+    nowPlaying(): Track {
         if (this.#watchDestroyed()) return;
         return this.current;
     }
 
     /**
      * Connects to a voice channel
-     * @param {GuildChannelResolvable} channel The voice/stage channel
+     * @param {DMChannel} channel The DM channel
      * @returns {Promise<Queue>}
      */
-    async connect(channel: GuildChannelResolvable) {
+    async connect(channel: DMChannel): Promise<Queue> {
         if (this.#watchDestroyed()) return;
-        const _channel = this.guild.channels.resolve(channel) as StageChannel | VoiceChannel;
-        if (![ChannelType.GuildStageVoice, ChannelType.GuildVoice].includes(_channel?.type))
-            throw new PlayerError(`Channel type must be GuildVoice or GuildStageVoice, got ${_channel?.type}!`, ErrorStatusCode.INVALID_ARG_TYPE);
-        const connection = await this.player.voiceUtils.connect(_channel, {
+        const connection = await this.player.voiceUtils.connect(channel, {
             deaf: this.options.autoSelfDeaf
         });
         this.connection = connection;
-
-        if (_channel.type === ChannelType.GuildStageVoice) {
-            await _channel.guild.members.me.voice.setSuppressed(false).catch(async () => {
-                return await _channel.guild.members.me.voice.setRequestToSpeak(true).catch(Util.noop);
-            });
-        }
 
         this.connection.on("error", (err) => {
             if (this.#watchDestroyed(false)) return;
@@ -215,12 +206,12 @@ class Queue<T = unknown> {
      * @param {boolean} [disconnect=this.options.leaveOnStop] If it should leave on destroy
      * @returns {void}
      */
-    destroy(disconnect = this.options.leaveOnStop) {
+    destroy(disconnect: boolean = this.options.leaveOnStop): void {
         if (this.#watchDestroyed()) return;
         if (this.connection) this.connection.end();
         if (disconnect) this.connection?.disconnect();
-        this.player.queues.delete(this.guild.id);
-        this.player.voiceUtils.cache.delete(this.guild.id);
+        this.player.queues.delete(this.dmGuild);
+        this.player.voiceUtils.cache.delete(this.dmGuild);
         this.#destroyed = true;
     }
 
@@ -228,7 +219,7 @@ class Queue<T = unknown> {
      * Skips current track
      * @returns {boolean}
      */
-    skip() {
+    skip(): boolean {
         if (this.#watchDestroyed()) return;
         if (!this.connection) return false;
         this._filtersUpdate = false;
@@ -241,7 +232,7 @@ class Queue<T = unknown> {
      * @param {Track} track The track to add
      * @returns {void}
      */
-    addTrack(track: Track) {
+    addTrack(track: Track): void {
         if (this.#watchDestroyed()) return;
         if (!(track instanceof Track)) throw new PlayerError("invalid track", ErrorStatusCode.INVALID_TRACK);
         this.tracks.push(track);
@@ -264,7 +255,7 @@ class Queue<T = unknown> {
      * @param {boolean} paused The paused state
      * @returns {boolean}
      */
-    setPaused(paused?: boolean) {
+    setPaused(paused?: boolean): boolean {
         if (this.#watchDestroyed()) return;
         if (!this.connection) return false;
         return paused ? this.connection.pause(true) : this.connection.resume();
@@ -275,10 +266,10 @@ class Queue<T = unknown> {
      * @param  {number|auto} bitrate bitrate to set
      * @returns {void}
      */
-    setBitrate(bitrate: number | "auto") {
+    setBitrate(bitrate: number | "auto"): void {
         if (this.#watchDestroyed()) return;
         if (!this.connection?.audioResource?.encoder) return;
-        if (bitrate === "auto") bitrate = this.connection.channel?.bitrate ?? 64000;
+        bitrate = 64000 // Bitrate for DM calls
         this.connection.audioResource.encoder.setBitrate(bitrate);
     }
 
@@ -287,7 +278,7 @@ class Queue<T = unknown> {
      * @param {number} amount The volume amount
      * @returns {boolean}
      */
-    setVolume(amount: number) {
+    setVolume(amount: number): boolean {
         if (this.#watchDestroyed()) return;
         if (!this.connection) return false;
         this.#lastVolume = amount;
@@ -299,7 +290,7 @@ class Queue<T = unknown> {
      * @param  {QueueRepeatMode} mode The repeat mode
      * @returns {boolean}
      */
-    setRepeatMode(mode: QueueRepeatMode) {
+    setRepeatMode(mode: QueueRepeatMode): boolean {
         if (this.#watchDestroyed()) return;
         if (![QueueRepeatMode.OFF, QueueRepeatMode.QUEUE, QueueRepeatMode.TRACK, QueueRepeatMode.AUTOPLAY].includes(mode))
             throw new PlayerError(`Unknown repeat mode "${mode}"!`, ErrorStatusCode.UNKNOWN_REPEAT_MODE);
@@ -346,7 +337,7 @@ class Queue<T = unknown> {
      * Returns enabled filters
      * @returns {AudioFilters}
      */
-    getFiltersEnabled() {
+    getFiltersEnabled(): AudioFilters {
         if (this.#watchDestroyed()) return;
         return AudioFilters.names.filter((x) => this._activeFilters.includes(x));
     }
@@ -355,7 +346,7 @@ class Queue<T = unknown> {
      * Returns disabled filters
      * @returns {AudioFilters}
      */
-    getFiltersDisabled() {
+    getFiltersDisabled(): AudioFilters {
         if (this.#watchDestroyed()) return;
         return AudioFilters.names.filter((x) => !this._activeFilters.includes(x));
     }
@@ -365,7 +356,7 @@ class Queue<T = unknown> {
      * @param {QueueFilters} filters Queue filters
      * @returns {Promise<void>}
      */
-    async setFilters(filters?: QueueFilters) {
+    async setFilters(filters?: QueueFilters): Promise<void> {
         if (this.#watchDestroyed()) return;
         if (!filters || !Object.keys(filters).length) {
             // reset filters
@@ -402,9 +393,9 @@ class Queue<T = unknown> {
     /**
      * Seeks to the given time
      * @param {number} position The position
-     * @returns {boolean}
+     * @returns {Promise<boolean>}
      */
-    async seek(position: number) {
+    async seek(position: number): Promise<boolean> {
         if (this.#watchDestroyed()) return;
         if (!this.playing || !this.current) return false;
         if (position < 1) position = 0;
@@ -423,7 +414,7 @@ class Queue<T = unknown> {
      * Plays previous track
      * @returns {Promise<void>}
      */
-    async back() {
+    async back(): Promise<void> {
         if (this.#watchDestroyed()) return;
         const prev = this.previousTracks[this.previousTracks.length - 2]; // because last item is the current track
         if (!prev) throw new PlayerError("Could not find previous track", ErrorStatusCode.TRACK_NOT_FOUND);
@@ -444,7 +435,7 @@ class Queue<T = unknown> {
      * Stops the player
      * @returns {void}
      */
-    stop() {
+    stop(): void {
         if (this.#watchDestroyed()) return;
         return this.destroy();
     }
@@ -453,7 +444,7 @@ class Queue<T = unknown> {
      * Shuffles this queue
      * @returns {boolean}
      */
-    shuffle() {
+    shuffle(): boolean {
         if (this.#watchDestroyed()) return;
         if (!this.tracks.length || this.tracks.length < 2) return false;
 
@@ -470,7 +461,7 @@ class Queue<T = unknown> {
      * @param {Track|string|number} track The track to remove
      * @returns {Track}
      */
-    remove(track: Track | string | number) {
+    remove(track: Track | string | number): Track {
         if (this.#watchDestroyed()) return;
         let trackFound: Track = null;
         if (typeof track === "number") {
@@ -493,7 +484,7 @@ class Queue<T = unknown> {
      * @param {number|Track|string} track The track
      * @returns {number}
      */
-    getTrackPosition(track: number | Track | string) {
+    getTrackPosition(track: number | Track | string): number {
         if (this.#watchDestroyed()) return;
         if (typeof track === "number") return this.tracks[track] != null ? track : -1;
         return this.tracks.findIndex((pred) => pred.id === (track instanceof Track ? track.id : track));
@@ -535,7 +526,7 @@ class Queue<T = unknown> {
      * @param {Track} track The track to insert
      * @param {number} [index=0] The index where this track should be
      */
-    insert(track: Track, index = 0) {
+    insert(track: Track, index: number = 0) {
         if (this.#watchDestroyed()) return;
         if (!track || !(track instanceof Track)) throw new PlayerError("track must be the instance of Track", ErrorStatusCode.INVALID_TRACK);
         if (typeof index !== "number" || index < 0 || !Number.isFinite(index)) throw new PlayerError(`Invalid index "${index}"`, ErrorStatusCode.INVALID_ARG_TYPE);
@@ -576,7 +567,7 @@ class Queue<T = unknown> {
      * @param {PlayerProgressbarOptions} options The progress bar options
      * @returns {string}
      */
-    createProgressBar(options: PlayerProgressbarOptions = { timecodes: true }) {
+    createProgressBar(options: PlayerProgressbarOptions = { timecodes: true }): string {
         if (this.#watchDestroyed()) return;
         const length = typeof options.length === "number" ? (options.length <= 0 || options.length === Infinity ? 15 : options.length) : 15;
 
@@ -676,7 +667,7 @@ class Queue<T = unknown> {
             type: StreamType.Raw,
             data: track,
             disableVolume: Boolean(this.options.disableVolume)
-        });
+        }) as any;
 
         if (options.seek) this._streamTime = options.seek;
         this._filtersUpdate = options.filtersUpdate;
@@ -741,12 +732,11 @@ class Queue<T = unknown> {
      * JSON representation of this queue
      * @returns {object}
      */
-    toJSON() {
+    toJSON(): object {
         if (this.#watchDestroyed()) return;
         return {
             id: this.id,
-            guild: this.guild.id,
-            voiceChannel: this.connection?.channel?.id,
+            guild: this.dmGuild,
             options: this.options,
             tracks: this.tracks.map((m) => m.toJSON())
         };
@@ -756,7 +746,7 @@ class Queue<T = unknown> {
      * String representation of this queue
      * @returns {string}
      */
-    toString() {
+    toString(): string {
         if (this.#watchDestroyed()) return;
         if (!this.tracks.length) return "No songs available to display!";
         return `**Upcoming Songs:**\n${this.tracks.map((m, i) => `${i + 1}. **${m.title}**`).join("\n")}`;
@@ -779,4 +769,5 @@ class Queue<T = unknown> {
     }
 }
 
-export { Queue };
+export { Queue }
+

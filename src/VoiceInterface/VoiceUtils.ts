@@ -1,6 +1,6 @@
-import { VoiceChannel, StageChannel, Collection, Snowflake } from "discord.js";
-import { DiscordGatewayAdapterCreator, joinVoiceChannel, VoiceConnection } from "@discordjs/voice";
-import { StreamDispatcher } from "./StreamDispatcher";
+import type { VoiceConnection } from "@discordjs/voice"
+import { Collection, Snowflake, type DMChannel } from "discord.js-selfbot-v13"
+import { StreamDispatcher } from "./StreamDispatcher"
 
 class VoiceUtils {
     public cache: Collection<Snowflake, StreamDispatcher>;
@@ -19,42 +19,39 @@ class VoiceUtils {
 
     /**
      * Joins a voice channel, creating basic stream dispatch manager
-     * @param {StageChannel|VoiceChannel} channel The voice channel
+     * @param {DMChannel} channel The voice channel
      * @param {object} [options] Join options
      * @returns {Promise<StreamDispatcher>}
      */
     public async connect(
-        channel: VoiceChannel | StageChannel,
+        channel: DMChannel,
         options?: {
             deaf?: boolean;
             maxTime?: number;
         }
     ): Promise<StreamDispatcher> {
         const conn = await this.join(channel, options);
-        const sub = new StreamDispatcher(conn, channel, options.maxTime);
-        this.cache.set(channel.guild.id, sub);
+        const sub = new StreamDispatcher(conn, options.maxTime);
+        this.cache.set(channel.id, sub);
         return sub;
     }
 
     /**
      * Joins a voice channel
-     * @param {StageChannel|VoiceChannel} [channel] The voice/stage channel to join
+     * @param {DMChannel} [channel] The voice/stage channel to join
      * @param {object} [options] Join options
      * @returns {VoiceConnection}
      */
     public async join(
-        channel: VoiceChannel | StageChannel,
+        channel: DMChannel,
         options?: {
             deaf?: boolean;
             maxTime?: number;
         }
     ) {
-        const conn = joinVoiceChannel({
-            guildId: channel.guild.id,
-            channelId: channel.id,
-            adapterCreator: channel.guild.voiceAdapterCreator as unknown as DiscordGatewayAdapterCreator,
+        const conn = await channel.call({
             selfDeaf: Boolean(options.deaf)
-        });
+        })
 
         return conn;
     }
@@ -79,4 +76,5 @@ class VoiceUtils {
     }
 }
 
-export { VoiceUtils };
+export { VoiceUtils }
+

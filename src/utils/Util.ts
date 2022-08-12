@@ -1,5 +1,4 @@
-import { StageChannel, VoiceChannel } from "discord.js";
-import { TimeData } from "../types/types";
+import { TimeData } from "../types/types"
 
 class Util {
     /**
@@ -63,14 +62,9 @@ class Util {
         return arr[arr.length - 1];
     }
 
-    /**
-     * Checks if the voice channel is empty
-     * @param {VoiceChannel|StageChannel} channel The voice channel
-     * @returns {boolean}
-     */
-    static isVoiceEmpty(channel: VoiceChannel | StageChannel) {
-        return channel.members.filter((member) => !member.user.bot).size === 0;
-    }
+    // static isVoiceEmpty(channel: VoiceChannel | StageChannel) {
+    //     return channel.members.filter((member) => !member.user.bot).size === 0;
+    // }
 
     /**
      * Safer require
@@ -114,4 +108,5 @@ class Util {
     }
 }
 
-export { Util };
+export { Util }
+

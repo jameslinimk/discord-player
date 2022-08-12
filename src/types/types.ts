@@ -1,10 +1,10 @@
-import { Snowflake, User, UserResolvable } from "discord.js";
-import { Readable, Duplex } from "stream";
-import { Queue } from "../Structures/Queue";
-import Track from "../Structures/Track";
-import { Playlist } from "../Structures/Playlist";
-import { StreamDispatcher } from "../VoiceInterface/StreamDispatcher";
-import { downloadOptions } from "ytdl-core";
+import { Snowflake, User, UserResolvable, type Client } from "discord.js-selfbot-v13"
+import { Duplex, Readable } from "stream"
+import { downloadOptions } from "ytdl-core"
+import { Playlist } from "../Structures/Playlist"
+import { Queue } from "../Structures/Queue"
+import Track from "../Structures/Track"
+import { StreamDispatcher } from "../VoiceInterface/StreamDispatcher"
 
 export type FiltersName = keyof QueueFilters;
 
@@ -484,4 +484,21 @@ export interface PlayerInitOptions {
     autoRegisterExtractor?: boolean;
     ytdlOptions?: downloadOptions;
     connectionTimeout?: number;
+}
+
+export interface NewVoiceState {
+    guild: {
+        client: Client
+    };
+    id: string;
+    serverDeaf: boolean;
+    serverMute: boolean;
+    selfDeaf: boolean;
+    selfMute: boolean;
+    selfVideo: boolean;
+    sessionId: string;
+    streaming: boolean;
+    channelId: string;
+    suppress: boolean;
+    requestToSpeakTimestamp?: number;
 }
